@@ -10,9 +10,8 @@ use crate::flops;
 use crate::orchestrator_client::OrchestratorClient;
 use crate::setup;
 use crate::utils;
+use bincode::serialize;
 use colored::Colorize;
-use sha3::{Digest, Keccak256};
-use bincode::serialize; // Changed to binary serialization
 
 /// Proves a program with a given node ID
 #[allow(dead_code)]
@@ -26,10 +25,8 @@ async fn authenticated_proving(
     let proof_task = client.get_proof_task(node_id).await?;
     println!("2. Received a task to prove from Nexus Orchestrator...");
 
-    // Verify public input handling
-    let public_input: u32 = proof_task.public_inputs[0]
-        .parse()
-        .expect("Invalid public input format");
+    // Fixed: Direct cast instead of parse()
+    let public_input: u32 = proof_task.public_inputs[0] as u32;
 
     println!("3. Compiling guest program...");
     let elf_file_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -45,18 +42,22 @@ async fn authenticated_proving(
 
     assert_eq!(view.exit_code().expect("failed to retrieve exit code"), 0);
 
-    // Changed to binary serialization
     let proof_bytes = serialize(&proof)?;
-    let proof_hash = format!("{:x}", Keccak256::digest(&proof_bytes));
 
     println!("\tProof size: {} bytes", proof_bytes.len());
     println!("5. Submitting ZK proof to Nexus Orchestrator...");
     client
-        .submit_proof(node_id, &proof_hash, proof_bytes)
+        .submit_proof(node_id, &proof_hash(proof_bytes.clone()), proof_bytes)
         .await?;
     println!("{}", "6. ZK proof successfully submitted".green());
 
     Ok(())
+}
+
+// Helper function for proof hashing
+fn proof_hash(proof_bytes: Vec<u8>) -> String {
+    use sha3::{Digest, Keccak256};
+    format!("{:x}", Keccak256::digest(&proof_bytes))
 }
 
 fn anonymous_proving() -> Result<(), Box<dyn std::error::Error>> {
@@ -76,7 +77,6 @@ fn anonymous_proving() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(view.exit_code().expect("failed to retrieve exit code"), 0);
 
-    // Changed to binary serialization
     let proof_bytes = serialize(&proof)?;
 
     println!(
