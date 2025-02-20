@@ -12,6 +12,7 @@ use crate::setup;
 use crate::utils;
 use colored::Colorize;
 use sha3::{Digest, Keccak256};
+use bincode::serialize; // Changed to binary serialization
 
 /// Proves a program with a given node ID
 #[allow(dead_code)]
@@ -25,7 +26,10 @@ async fn authenticated_proving(
     let proof_task = client.get_proof_task(node_id).await?;
     println!("2. Received a task to prove from Nexus Orchestrator...");
 
-    let public_input: u32 = proof_task.public_inputs[0] as u32;
+    // Verify public input handling
+    let public_input: u32 = proof_task.public_inputs[0]
+        .parse()
+        .expect("Invalid public input format");
 
     println!("3. Compiling guest program...");
     let elf_file_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -41,7 +45,8 @@ async fn authenticated_proving(
 
     assert_eq!(view.exit_code().expect("failed to retrieve exit code"), 0);
 
-    let proof_bytes = serde_json::to_vec(&proof)?;
+    // Changed to binary serialization
+    let proof_bytes = serialize(&proof)?;
     let proof_hash = format!("{:x}", Keccak256::digest(&proof_bytes));
 
     println!("\tProof size: {} bytes", proof_bytes.len());
@@ -55,12 +60,8 @@ async fn authenticated_proving(
 }
 
 fn anonymous_proving() -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Instead of fetching the proof task from the orchestrator, we will use hardcoded input program and values
-
-    // The 10th term of the Fibonacci sequence is 55
     let public_input: u32 = 9;
 
-    //2. Compile the guest program
     println!("1. Compiling guest program...");
     let elf_file_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("assets")
@@ -68,7 +69,6 @@ fn anonymous_proving() -> Result<(), Box<dyn std::error::Error>> {
     let prover =
         Stwo::<Local>::new_from_file(&elf_file_path).expect("failed to load guest program");
 
-    //3. Run the prover
     println!("2. Creating ZK proof...");
     let (view, proof) = prover
         .prove_with_input::<(), u32>(&(), &public_input)
@@ -76,7 +76,8 @@ fn anonymous_proving() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(view.exit_code().expect("failed to retrieve exit code"), 0);
 
-    let proof_bytes = serde_json::to_vec(&proof)?;
+    // Changed to binary serialization
+    let proof_bytes = serialize(&proof)?;
 
     println!(
         "{}",
