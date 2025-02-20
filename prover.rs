@@ -157,20 +157,25 @@ pub async fn start_prover(
                 environment.to_string().bright_cyan()
             );
 
-    let mut proof_count = 1;
-    loop {
-        println!("\n================================================");
-        println!(
-            "{}",
-            format!("\nStarting proof #{} ...\n", proof_count).yellow()
-        );
+            let mut proof_count = 1;
+            loop {
+                println!("\n================================================");
+                println!(
+                    "{}",
+                    format!("\nStarting proof #{} ...\n", proof_count).yellow()
+                );
 
-        match authenticated_proving(&node_id, environment).await {  // ✅ Corrected!
-            Ok(_) => (),
-            Err(e) => println!("Error in authenticated proving: {}", e),
+                match authenticated_proving(&node_id, environment).await {
+                    Ok(_) => (),
+                    Err(e) => println!("Error in authenticated proving: {}", e),
+                }
+
+                proof_count += 1;
+                tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+            }
         }
-
-        proof_count += 1;
-        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+        setup::SetupResult::Invalid => {
+            return Err("Invalid setup option selected".into());
+        }
     }
 }
